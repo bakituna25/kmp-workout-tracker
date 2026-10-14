@@ -1,0 +1,62 @@
+-- Exercise Table
+CREATE TABLE IF NOT EXISTS exercises (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    muscle_group TEXT,
+    equipment_needed TEXT,
+    description TEXT,
+    difficulty TEXT,
+    is_bodyweight INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS index_exercises_name ON exercises(name);
+
+-- Queries
+
+-- Insert
+insertExercise:
+INSERT INTO exercises(name, muscle_group, equipment_needed, description, difficulty, is_bodyweight)
+VALUES (?, ?, ?, ?, ?, ?);
+
+insert:
+INSERT INTO exercises(name, muscle_group, equipment_needed, description, difficulty, is_bodyweight)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- Select
+getAllExercises:
+SELECT * FROM exercises ORDER BY name ASC;
+
+getExerciseById:
+SELECT * FROM exercises WHERE id = ? LIMIT 1;
+
+getExercisesByMuscleGroup:
+SELECT * FROM exercises WHERE muscle_group = ? ORDER BY name ASC;
+
+findIdByName:
+SELECT id FROM exercises WHERE name = ? LIMIT 1;
+
+ensureExerciseExists:
+SELECT id FROM exercises WHERE id = ? LIMIT 1;
+
+findExerciseIdByName:
+SELECT id FROM exercises WHERE name = ? LIMIT 1;
+
+findExerciseIdByNameExact:
+SELECT id FROM exercises WHERE name = ? LIMIT 1;
+
+getAllMuscleGroups:
+SELECT DISTINCT muscle_group FROM exercises ORDER BY muscle_group;
+
+-- Update
+updateExercise:
+UPDATE exercises 
+SET name = ?, muscle_group = ?, equipment_needed = ?, description = ?, difficulty = ?, is_bodyweight = ?
+WHERE id = ?;
+
+-- Delete
+deleteExercise:
+DELETE FROM exercises WHERE id = ?;
+
+deleteAllExercises:
+DELETE FROM exercises;
+

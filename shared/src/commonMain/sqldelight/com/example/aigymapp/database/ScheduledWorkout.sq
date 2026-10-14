@@ -1,0 +1,169 @@
+-- ScheduledWorkout Table
+CREATE TABLE IF NOT EXISTS scheduled_workouts (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    plan_item_id INTEGER NOT NULL,
+    date_epoch_day INTEGER NOT NULL,
+    elapsed_time_ms INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(plan_item_id) REFERENCES workout_planner_items(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS index_scheduled_workouts_plan_item_id ON scheduled_workouts(plan_item_id);
+CREATE INDEX IF NOT EXISTS index_scheduled_workouts_date_epoch_day ON scheduled_workouts(date_epoch_day);
+
+-- Queries
+
+-- Insert
+insertScheduledWorkout:
+INSERT INTO scheduled_workouts(plan_item_id, date_epoch_day, elapsed_time_ms)
+VALUES (?, ?, ?);
+
+insertScheduledWorkouts:
+INSERT INTO scheduled_workouts(plan_item_id, date_epoch_day, elapsed_time_ms)
+VALUES (?, ?, ?);
+
+insertScheduledWorkoutsSync:
+INSERT INTO scheduled_workouts(plan_item_id, date_epoch_day, elapsed_time_ms)
+VALUES (?, ?, ?);
+
+-- Select
+getScheduledById:
+SELECT * FROM scheduled_workouts WHERE id = ?;
+
+getPlanItemIdsForDate:
+SELECT plan_item_id FROM scheduled_workouts WHERE date_epoch_day = ?;
+
+getDatesForPlanItem:
+SELECT DISTINCT date_epoch_day FROM scheduled_workouts WHERE plan_item_id = ? ORDER BY date_epoch_day;
+
+countAllScheduledWorkouts:
+SELECT COUNT(*) FROM scheduled_workouts;
+
+getTotalElapsedTimeForDate:
+SELECT COALESCE(SUM(elapsed_time_ms), 0) FROM scheduled_workouts 
+WHERE date_epoch_day = ?;
+
+hasWorkoutPlanForDate:
+SELECT COUNT(*) > 0 FROM scheduled_workouts 
+WHERE date_epoch_day = CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER);
+
+-- Complex queries with joins
+getScheduledForDate:
+SELECT 
+    sw.id AS sw_id,
+    sw.plan_item_id AS sw_plan_item_id,
+    sw.date_epoch_day AS sw_date_epoch_day,
+    sw.elapsed_time_ms AS sw_elapsed_time_ms,
+    wpi.id AS wpi_id,
+    wpi.session_id AS wpi_session_id,
+    wpi.exercise_id AS wpi_exercise_id,
+    wpi.sets AS wpi_sets,
+    wpi.reps AS wpi_reps,
+    wpi.weight_kg AS wpi_weight_kg,
+    wpi.duration_min AS wpi_duration_min,
+    wpi.rest_sec AS wpi_rest_sec,
+    wpi.notes AS wpi_notes,
+    wpi.created_at AS wpi_created_at,
+    e.name AS exercise_name,
+    e.muscle_group AS exercise_muscle_group
+FROM scheduled_workouts sw
+INNER JOIN workout_planner_items wpi ON sw.plan_item_id = wpi.id
+INNER JOIN exercises e ON wpi.exercise_id = e.id
+WHERE sw.date_epoch_day = ?
+ORDER BY sw.sort_order ASC, sw.id DESC;
+
+getScheduledForRange:
+SELECT 
+    sw.id AS sw_id,
+    sw.plan_item_id AS sw_plan_item_id,
+    sw.date_epoch_day AS sw_date_epoch_day,
+    wpi.id AS wpi_id,
+    wpi.session_id AS wpi_session_id,
+    wpi.exercise_id AS wpi_exercise_id,
+    wpi.sets AS wpi_sets,
+    wpi.reps AS wpi_reps,
+    wpi.weight_kg AS wpi_weight_kg,
+    wpi.duration_min AS wpi_duration_min,
+    wpi.rest_sec AS wpi_rest_sec,
+    wpi.notes AS wpi_notes,
+    wpi.created_at AS wpi_created_at,
+    e.name AS exercise_name,
+    e.muscle_group AS exercise_muscle_group
+FROM scheduled_workouts sw
+INNER JOIN workout_planner_items wpi ON sw.plan_item_id = wpi.id
+INNER JOIN exercises e ON wpi.exercise_id = e.id
+WHERE sw.date_epoch_day BETWEEN ? AND ?
+ORDER BY sw.date_epoch_day ASC, sw.id DESC;
+
+getScheduledWorkoutsForDateDebug:
+SELECT 
+    sw.id AS sw_id,
+    sw.plan_item_id AS sw_plan_item_id,
+    sw.date_epoch_day AS sw_date_epoch_day,
+    wpi.id AS item_id,
+    ex.name AS exercise_name
+FROM scheduled_workouts sw
+LEFT JOIN workout_planner_items wpi ON sw.plan_item_id = wpi.id
+LEFT JOIN exercises ex ON wpi.exercise_id = ex.id
+WHERE sw.date_epoch_day = CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER);
+
+-- Update
+updateScheduledWorkout:
+UPDATE scheduled_workouts 
+SET plan_item_id = ?, date_epoch_day = ?, elapsed_time_ms = ?
+WHERE id = ?;
+
+updateElapsedTime:
+UPDATE scheduled_workouts
+SET elapsed_time_ms = ?
+WHERE id = ?;
+
+updateSortOrder:
+UPDATE scheduled_workouts
+SET sort_order = ?
+WHERE id = ?;
+
+
+
+-- Delete
+deleteScheduledWorkout:
+DELETE FROM scheduled_workouts WHERE id = ?;
+
+deleteScheduledWorkoutById:
+DELETE FROM scheduled_workouts WHERE id = ?;
+
+deleteScheduledWorkoutsByPlanItemId:
+DELETE FROM scheduled_workouts WHERE plan_item_id = ?;
+
+deleteScheduledWorkoutsByPlanItemIdSync:
+DELETE FROM scheduled_workouts WHERE plan_item_id = ?;
+
+deleteScheduledWorkoutsForDays:
+DELETE FROM scheduled_workouts WHERE plan_item_id = ? AND date_epoch_day IN ?;
+
+deleteScheduledByPlanAndDate:
+DELETE FROM scheduled_workouts WHERE plan_item_id = ? AND date_epoch_day = ?;
+
+deleteScheduledForDate:
+DELETE FROM scheduled_workouts WHERE date_epoch_day = ?;
+
+-- Orphan cleanup
+deleteOrphanScheduledWorkouts:
+DELETE FROM scheduled_workouts 
+WHERE NOT EXISTS (SELECT 1 FROM workout_planner_items i WHERE i.id = scheduled_workouts.plan_item_id);
+
+
+-- Get the last (most recent past) scheduled workout for a given exercise name
+getLastPerformanceForExercise:
+SELECT
+    sw.date_epoch_day,
+    wpi.sets,
+    wpi.reps,
+    wpi.weight_kg,
+    e.name AS exercise_name
+FROM scheduled_workouts sw
+INNER JOIN workout_planner_items wpi ON sw.plan_item_id = wpi.id
+INNER JOIN exercises e ON wpi.exercise_id = e.id
+WHERE e.name = ? AND sw.date_epoch_day < ?
+ORDER BY sw.date_epoch_day DESC
+LIMIT 1;

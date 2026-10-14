@@ -1,0 +1,3 @@
+-- Migration 3: Add avatar column to UserProfile table (profile photo, BLOB)
+
+ALTER TABLE UserProfile ADD COLUMN avatar BLOB;

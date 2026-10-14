@@ -1,0 +1,49 @@
+-- WorkoutPlannerSession Table
+CREATE TABLE IF NOT EXISTS workout_planner_sessions (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    date_epoch_day INTEGER NOT NULL,
+    title TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+-- Queries
+
+-- Insert
+insertSession:
+INSERT INTO workout_planner_sessions(date_epoch_day, title, created_at, updated_at)
+VALUES (?, ?, ?, ?);
+
+insertSessionSync:
+INSERT INTO workout_planner_sessions(date_epoch_day, title, created_at, updated_at)
+VALUES (?, ?, ?, ?);
+
+-- Select
+getSessionById:
+SELECT * FROM workout_planner_sessions WHERE id = ?;
+
+getSessionByDate:
+SELECT * FROM workout_planner_sessions WHERE date_epoch_day = ?;
+
+getAllSessions:
+SELECT * FROM workout_planner_sessions ORDER BY date_epoch_day DESC;
+
+getSessionCountForDay:
+SELECT COUNT(*) FROM workout_planner_sessions WHERE date_epoch_day = ?;
+
+ensureSessionExists:
+SELECT id FROM workout_planner_sessions WHERE id = ? LIMIT 1;
+
+-- Update
+updateSession:
+UPDATE workout_planner_sessions 
+SET date_epoch_day = ?, title = ?, updated_at = ?
+WHERE id = ?;
+
+-- Delete
+deleteSession:
+DELETE FROM workout_planner_sessions WHERE id = ?;
+
+deleteSessionByDate:
+DELETE FROM workout_planner_sessions WHERE date_epoch_day = ?;
+

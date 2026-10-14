@@ -1,0 +1,66 @@
+-- WorkoutSetTick Table
+CREATE TABLE IF NOT EXISTS workout_set_ticks (
+    plan_item_id INTEGER NOT NULL,
+    set_index INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    is_checked INTEGER NOT NULL,
+    reps_completed INTEGER,
+    weight_used REAL,
+    ticked_at INTEGER NOT NULL,
+    PRIMARY KEY(plan_item_id, set_index, date),
+    FOREIGN KEY(plan_item_id) REFERENCES workout_planner_items(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS index_workout_set_ticks_date ON workout_set_ticks(date);
+CREATE INDEX IF NOT EXISTS index_workout_set_ticks_plan_item_id ON workout_set_ticks(plan_item_id);
+CREATE INDEX IF NOT EXISTS index_workout_set_ticks_plan_item_id_date ON workout_set_ticks(plan_item_id, date);
+
+-- Queries
+
+-- Insert
+insertOrUpdateSetTick:
+INSERT OR REPLACE INTO workout_set_ticks(plan_item_id, set_index, date, is_checked, reps_completed, weight_used, ticked_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- Select
+getSetTick:
+SELECT * FROM workout_set_ticks WHERE plan_item_id = ? AND set_index = ? AND date = ?;
+
+getCompletedSetsCount:
+SELECT COUNT(*) FROM workout_set_ticks wst
+INNER JOIN scheduled_workouts sw ON sw.plan_item_id = wst.plan_item_id
+WHERE wst.date = ? 
+  AND wst.is_checked = 1
+  AND sw.date_epoch_day = CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER);
+
+getPerSetDetailsForDate:
+SELECT 
+    wps.plan_item_id AS plan_item_id,
+    wps.set_index AS set_index,
+    wps.planned_reps AS planned_reps,
+    wps.planned_weight AS planned_weight,
+    wpi.rest_sec AS rest_sec,
+    COALESCE(wst.is_checked, 0) AS checked,
+    wst.reps_completed AS reps_completed,
+    wst.weight_used AS weight_used,
+    ee.name AS exercise_name
+FROM workout_plan_sets wps
+INNER JOIN workout_planner_items wpi ON wps.plan_item_id = wpi.id
+INNER JOIN exercises ee ON wpi.exercise_id = ee.id
+INNER JOIN scheduled_workouts sw ON sw.plan_item_id = wpi.id
+LEFT JOIN workout_set_ticks wst ON wps.plan_item_id = wst.plan_item_id 
+    AND wps.set_index = wst.set_index 
+    AND wst.date = ?
+WHERE sw.date_epoch_day = CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER)
+ORDER BY wps.plan_item_id, wps.set_index;
+
+-- Delete
+deleteSetTick:
+DELETE FROM workout_set_ticks WHERE plan_item_id = ? AND set_index = ? AND date = ?;
+
+deleteTicksForItemDate:
+DELETE FROM workout_set_ticks WHERE plan_item_id = ? AND date = ?;
+
+deleteTicksForDateAndItems:
+DELETE FROM workout_set_ticks WHERE date = ? AND plan_item_id IN ?;
+

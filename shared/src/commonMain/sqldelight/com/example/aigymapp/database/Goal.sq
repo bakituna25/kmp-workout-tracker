@@ -1,0 +1,104 @@
+-- Goal Table
+CREATE TABLE IF NOT EXISTS goals (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    goal_type TEXT NOT NULL, -- 'EXERCISE_COUNT', 'MONTHLY_DAYS', 'MUSCLE_GROUP_COUNT'
+    target_value INTEGER NOT NULL,
+    
+    -- Optional: Specific exercise or muscle group
+    exercise_id INTEGER,
+    muscle_group TEXT,
+    
+    -- Date range
+    start_date TEXT NOT NULL,
+    end_date TEXT,
+    
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    
+    FOREIGN KEY(exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS index_goals_exercise_id ON goals(exercise_id);
+CREATE INDEX IF NOT EXISTS index_goals_is_active ON goals(is_active);
+CREATE INDEX IF NOT EXISTS index_goals_goal_type ON goals(goal_type);
+
+-- Queries
+
+-- Insert
+insertGoal:
+INSERT INTO goals(title, description, goal_type, target_value, exercise_id, muscle_group, start_date, end_date, is_active, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Select
+getAllActiveGoals:
+SELECT * FROM goals WHERE is_active = 1 ORDER BY created_at DESC;
+
+getGoalById:
+SELECT * FROM goals WHERE id = ?;
+
+getAllGoals:
+SELECT * FROM goals ORDER BY created_at DESC;
+
+-- Get goals with exercise names (for EXERCISE_COUNT type)
+getGoalsWithExercise:
+SELECT 
+    g.id AS goal_id,
+    g.title AS goal_title,
+    g.description AS goal_description,
+    g.goal_type AS goal_type,
+    g.target_value AS target_value,
+    g.exercise_id AS exercise_id,
+    g.muscle_group AS muscle_group,
+    g.start_date AS start_date,
+    g.end_date AS end_date,
+    g.is_active AS is_active,
+    g.created_at AS created_at,
+    e.name AS exercise_name,
+    e.muscle_group AS exercise_muscle_group
+FROM goals g
+LEFT JOIN exercises e ON g.exercise_id = e.id
+WHERE g.is_active = 1
+ORDER BY g.created_at DESC;
+
+-- Update
+updateGoal:
+UPDATE goals 
+SET title = ?, description = ?, goal_type = ?, target_value = ?, exercise_id = ?, muscle_group = ?, start_date = ?, end_date = ?, is_active = ?
+WHERE id = ?;
+
+updateGoalActiveStatus:
+UPDATE goals 
+SET is_active = ?
+WHERE id = ?;
+
+-- Delete
+deleteGoal:
+DELETE FROM goals WHERE id = ?;
+
+-- Analytics: Count completed workout days for EXERCISE_COUNT goal
+getCompletedDaysForExercise:
+SELECT COUNT(DISTINCT wst.date) 
+FROM workout_set_ticks wst
+INNER JOIN workout_planner_items wpi ON wst.plan_item_id = wpi.id
+WHERE wpi.exercise_id = ? 
+  AND wst.is_checked = 1
+  AND wst.date BETWEEN ? AND ?;
+
+-- Analytics: Count completed workout days for MONTHLY_DAYS goal
+getCompletedDaysInRange:
+SELECT COUNT(DISTINCT date) 
+FROM workout_set_ticks 
+WHERE is_checked = 1 
+  AND date BETWEEN ? AND ?;
+
+-- Analytics: Count completed workout days for MUSCLE_GROUP_COUNT goal
+getCompletedDaysForMuscleGroup:
+SELECT COUNT(DISTINCT wst.date) 
+FROM workout_set_ticks wst
+INNER JOIN workout_planner_items wpi ON wst.plan_item_id = wpi.id
+INNER JOIN exercises e ON wpi.exercise_id = e.id
+WHERE e.muscle_group = ? 
+  AND wst.is_checked = 1
+  AND wst.date BETWEEN ? AND ?;

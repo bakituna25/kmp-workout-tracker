@@ -1,0 +1,109 @@
+-- DayProgress Table
+CREATE TABLE IF NOT EXISTS day_progress (
+    date TEXT NOT NULL PRIMARY KEY,
+    planned_sets INTEGER NOT NULL,
+    completed_sets INTEGER NOT NULL,
+    completion_percent REAL NOT NULL,
+    status TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+-- Queries
+
+-- Insert
+insertOrUpdateDayProgress:
+INSERT OR REPLACE INTO day_progress(date, planned_sets, completed_sets, completion_percent, status, updated_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- Select
+getDayProgress:
+SELECT * FROM day_progress WHERE date = ?;
+
+observeProgressRange:
+SELECT * FROM day_progress
+WHERE date BETWEEN ? AND ?
+ORDER BY date ASC;
+
+getProgressRange:
+SELECT * FROM day_progress
+WHERE date BETWEEN ? AND ?
+ORDER BY date ASC;
+
+-- Delete
+deleteDayProgress:
+DELETE FROM day_progress WHERE date = ?;
+
+-- Orphan cleanup: Plan olmayan günlerin day_progress kayıtlarını temizle
+deleteOrphanDayProgress:
+DELETE FROM day_progress 
+WHERE date NOT IN (
+    SELECT DISTINCT DATE('1970-01-01', '+' || date_epoch_day || ' days')
+    FROM scheduled_workouts
+)
+AND status != 'NO_PLAN';
+
+-- Complex analytics queries
+dayCards:
+SELECT 
+    wpi.id AS plan_item_id,
+    ex.name AS exercise_name,
+    ex.muscle_group AS muscle_group,
+    wpi.sets AS planned_sets,
+    wpi.reps AS avg_reps,
+    wpi.weight_kg AS planned_weight_kg,
+    COALESCE(wpi.rest_sec, 60) AS planned_rest_sec,
+    (wpi.sets * wpi.reps) AS planned_reps_total,
+    COALESCE(SUM(CASE WHEN wst.is_checked = 1 THEN 1 ELSE 0 END), 0) AS completed_sets
+FROM workout_planner_items wpi
+INNER JOIN exercises ex ON ex.id = wpi.exercise_id
+INNER JOIN scheduled_workouts sw ON sw.plan_item_id = wpi.id
+LEFT JOIN workout_set_ticks wst ON wst.plan_item_id = wpi.id AND wst.date = ?
+WHERE sw.date_epoch_day = CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER)
+GROUP BY wpi.id, ex.name, ex.muscle_group, wpi.sets, wpi.reps, wpi.weight_kg, wpi.rest_sec
+ORDER BY wpi.id ASC;
+
+dayExerciseSummary:
+SELECT 
+    wpi.id AS plan_item_id,
+    ex.name AS exercise_name,
+    ex.muscle_group AS muscle_group,
+    wpi.sets AS planned_sets,
+    COALESCE(SUM(CASE WHEN wst.is_checked = 1 THEN 1 ELSE 0 END), 0) AS completed_sets,
+    (wpi.sets * wpi.reps) AS planned_reps_total
+FROM workout_planner_items wpi
+INNER JOIN exercises ex ON ex.id = wpi.exercise_id
+INNER JOIN scheduled_workouts sw ON sw.plan_item_id = wpi.id
+LEFT JOIN workout_set_ticks wst ON wst.plan_item_id = wpi.id AND wst.date = ?
+WHERE sw.date_epoch_day = ?
+GROUP BY wpi.id, ex.name, ex.muscle_group, wpi.sets, wpi.reps
+ORDER BY wpi.id ASC;
+
+getTotalWorkoutDurationMsForDate:
+SELECT COALESCE(SUM(total_duration), 0) 
+FROM workout_sessions 
+WHERE DATE(datetime(start_time / 1000, 'unixepoch')) = ?;
+
+getDailyWorkoutCounts:
+SELECT 
+    DATE('1970-01-01', '+' || sw.date_epoch_day || ' days') AS date,
+    COUNT(DISTINCT sw.plan_item_id) AS count
+FROM scheduled_workouts sw
+WHERE sw.date_epoch_day BETWEEN 
+      CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER)
+  AND CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER)
+GROUP BY date
+ORDER BY date ASC;
+
+getMuscleGroupCounts:
+SELECT 
+    ex.muscle_group AS muscle_group,
+    COALESCE(SUM(wpi.sets), 0) AS count
+FROM scheduled_workouts sw
+INNER JOIN workout_planner_items wpi ON wpi.id = sw.plan_item_id
+INNER JOIN exercises ex ON ex.id = wpi.exercise_id
+WHERE sw.date_epoch_day BETWEEN 
+      CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER)
+  AND CAST((julianday(?) - julianday('1970-01-01')) AS INTEGER)
+GROUP BY ex.muscle_group
+ORDER BY count DESC;
+
